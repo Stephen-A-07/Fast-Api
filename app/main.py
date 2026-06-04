@@ -1,7 +1,8 @@
-from typing import Optional
 from fastapi import  FastAPI, HTTPException, Response,status
 from pydantic import BaseModel
-from random import randrange
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import time
 
 app = FastAPI()
 
@@ -9,14 +10,29 @@ class Post(BaseModel):
   title:str
   content:str
   published:bool = True
-  rating:Optional[int] = None
+  
+while True:  
+  try:
+    conn = psycopg2.connect(host='localhost',
+                            database='fastapi',
+                            user='postgres',
+                            password='Step',cursor_factory=RealDictCursor
+                            )
+    cursor = conn.cursor()
+    print("Database connection was successful!")
+    break
+  except Exception as error:
+    print("Connecting to database failed")
+    print("The error was",error)
+    time.sleep(2)
   
 my_posts = [{"title":"title of post 1","content":"content of post 1","id":1},{"title":"title of post 2","content":"content of post 2","id":2}] 
 
-def find_post(id):
-  for p in my_posts:
-    if p['id'] == id:
-      return p
+# def find_post(id):
+#   cursor.execute(f"""SELECT * FROM posts WHERE id={id}""")
+#   post = cursor.fetchone()
+#   return post
+
     
 def find_by_id(id):
   for i,p in enumerate(my_posts):
@@ -32,21 +48,27 @@ async def root():
 
 @app.get("/posts")
 def get_posts():
-  return {"data":my_posts}
+  cursor.execute("""SELECT * FROM posts""")
+  posts = cursor.fetchall()
+  return {"data":posts}
 
 #post methods
 
 @app.post("/posts",status_code=status.HTTP_201_CREATED)
 def create_posts(post:Post):
-  post_dict = post.model_dump()
-  post_dict['id'] = randrange(0,1000000)
-  my_posts.append(post_dict)
-  return {"message":post_dict}
+  cursor.execute("""INSERT INTO posts 
+                 (title,content,published) VALUES(%s,%s,%s) RETURNING *""",
+                 (post.title,post.content,post.published)
+                 )
+  new_post = cursor.fetchone()
+  conn.commit()
+  return {"message":new_post}
 
 
 @app.get("/posts/{id}")
 def get_post(id:int):
-  post = find_post(id)
+  cursor.execute("""SELECT * FROM posts WHERE id=%s""",(id))
+  post = cursor.fetchone()
   if not post:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=f"post with id {id} not found")
   return {"post_detail":post}
