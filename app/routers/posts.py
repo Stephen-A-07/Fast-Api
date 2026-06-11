@@ -1,16 +1,19 @@
 from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-
 from .. import models, oauth2, schemas
 from ..database import get_db
+
+
 
 router = APIRouter(
   prefix="/posts",
   tags=['Posts']
 )
+
+
+
 
 @router.get("/", response_model=list[schemas.PostOut])
 def get_posts(db:Session = Depends(get_db),current_user =  Depends(oauth2.get_current_user),limit:int = 10,skip:int=0,search:Optional[str]=""):
